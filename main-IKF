@@ -1,0 +1,85 @@
+clc;clear;close all
+for MC = 1:200
+    summse = 0;
+    summse_ = 0;
+    simga_w = sqrt(eye(3));
+    Q = simga_w^2;
+    simga_v = sqrtm(2*eye(2));
+    R = simga_v*simga_v';
+    simga_e = sqrt(5);
+    RE = simga_e^2;
+    F = [0.1 0.5 0.08;0.6 0.01 0.04;0.1 0.7 0.05];
+    B = [0 ; 2 ; 1];
+    G = [1 1 1];
+    x(:,1) = [1;1;1];
+    for i = 2:100
+        if i<=50
+            u = 50;
+            x(:,i) = F*x(:,i-1)+B*u+simga_w*randn(3,1);
+        else
+            u = -50;
+            x(:,i) = F*x(:,i-1)+B*u+simga_w*randn(3,1);
+        end
+    end
+    H = [1 1 0;0 1 1];
+    for i = 1:100
+        y(:,i) = H*x(:,i)+simga_v*randn(2,1);
+    end
+    x_(:,1) = x(:,1);
+    xup(:,1) = [0;0;0];
+    P(:,:,1) = eye(3);
+    xx(:,1) = x(:,1);
+    P_(:,:,1) = 5*eye(3);
+    xup_(:,1) = x(:,1);
+    for k = 1:99
+        Xn = F*xup(:,k);
+        Pre = F*P(:,:,k)*F'+Q;
+        S = H*Pre*H'+R;
+        M = inv(B'*H'*inv(S)*H*B)*B'*H'*inv(S);
+        uk = M*(y(:,k+1)-H*Xn);
+        xupp = Xn+B*uk;
+        PP = (eye(3)-B*M*H)*Pre*(eye(3)-B*M*H)'+B*M*R*M'*B';
+        K = Pre*H'*inv(S);
+        xup(:,k+1) = xupp+K*(y(:,k+1)-H*xupp);
+        P(:,:,k+1) = PP-K*(PP*H'-B*M*R)';
+
+        F_ = (eye(3)-K*H)*(eye(3)-B*M*H)*F;
+        E = B*M-K*H*B*M+K;
+        xx(:,k+1) = F_*xup(:,k)+E*H*x(:,k+1);
+        x_(:,k+1) = F_*xup(:,k)+E*H*x(:,k+1)+E*simga_v*randn(2,1);
+        Q_ = E*R*E';
+        Xn_ = F_*xup_(:,k)+E*H*x(:,k+1);
+        Pre_ = F_*P_(:,:,k)*F_'+Q_;
+        S_ = G*Pre_*G'+RE;
+        xup_(:,k+1) = Xn_+Pre_*G'*inv(S_)*(G*xup(:,k+1)+simga_e*randn(1,1)-G*Xn_);
+        P_(:,:,k+1) = Pre_-Pre_*G'*inv(S_)*G*Pre_;
+
+        % 计算每个时间点的误差
+        errors = x(:,k+1) - xup(:,k+1);
+        % 计算均方误差
+        mse = mean(errors.^2);
+        % 计算时间平均 RMSE
+        summse = summse+mse;
+        AMSE(MC,k) = sqrt(summse/k);
+        RMSE(MC,k) = mse;
+        % 计算每个时间点的误差
+        errors = x(:,k+1) - xup_(:,k+1);
+        % 计算均方误差
+        mse = mean(errors.^2);
+        summse_ = summse_+mse;
+        % 计算时间平均 RMSE
+        AMSE_(MC,k) = sqrt(summse_/k);
+        RMSE_(MC,k) = mse;
+    end
+end
+figure
+grid on;box on;hold on
+plot(1:size(RMSE,2),sqrt(sum(RMSE,1)/200),'r','Linewidth',2)
+plot(1:size(RMSE,2),sqrt(sum(RMSE_,1)/200),'g','Linewidth',2)
+plot(1:size(AMSE,2),sum(AMSE,1)/200,'Linewidth',2)
+plot(1:size(AMSE,2),sum(AMSE_,1)/200,'g--','Linewidth',2)
+xlabel('Time step','Interpreter','latex')
+legend('RMSE','RMSE_','AMSE','AMSE_', 'Interpreter','latex');
+title('GOSPA');
+set(gca,'TickLabelInterpreter', 'latex');
+set(gca,'FontSize',16)
